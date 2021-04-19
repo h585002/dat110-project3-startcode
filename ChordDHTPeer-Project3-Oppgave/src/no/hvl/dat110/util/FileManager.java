@@ -53,16 +53,20 @@ public class FileManager {
 	}
 	
 	public void createReplicaFiles() {
-	 	
-		// implement
-		
-		// set a loop where size = numReplicas
-		
-		// replicate by adding the index to filename
-		
-		// hash the replica
-		
-		// store the hash in the replicafiles array.
+	 
+	//set a loop where size = numReplicas
+	for(int i = 0; i < numReplicas; i++) {
+			
+			// replicate by adding the index to filename
+			String replica = filename + i;
+			
+			// hash the replica
+			BigInteger hReplica = Hash.hashOf(replica); 
+			
+			// store the hash in the replicafiles array.
+			replicafiles[i] = hReplica;
+			
+		}
 
 	}
 	
@@ -87,8 +91,8 @@ public class FileManager {
     	// call the addKey on the successor and add the replica
     	
     	// call the saveFileContent() on the successor
-    	
-    	// increment counter
+    	 
+    	//increment counter
     	
     		
 		return counter;
