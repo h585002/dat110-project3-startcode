@@ -152,18 +152,30 @@ public class FileManager {
 	 * @return 
 	 */
 	public NodeInterface findPrimaryOfItem() {
-
-		// Task: Given all the active peers of a file (activeNodesforFile()), find which is holding the primary copy
 		
+		NodeInterface primary = null;
+		// Task: Given all the active peers of a file (activeNodesforFile()), find which is holding the primary copy
 		// iterate over the activeNodesforFile
 		
+		
+		try {
+				Set<Message> activeNodes = requestActiveNodesForFile(filename);
+				for(Message msg : activeNodes) {
+					if(msg.isPrimaryServer()) {
+						primary = Util.getProcessStub(msg.getNodeIP(),msg.getPort());
+						return primary;
+					}
+				}
+		}catch(RemoteException e) {
+			e.printStackTrace();
+		}
 		// for each active peer (saved as Message)
 		
 		// use the primaryServer boolean variable contained in the Message class to check if it is the primary or not
 		
 		// return the primary
 		
-		return null; 
+		return primary; 
 	}
 	
     /**
