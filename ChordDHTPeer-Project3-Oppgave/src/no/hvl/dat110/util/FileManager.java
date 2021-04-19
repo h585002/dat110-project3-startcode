@@ -52,21 +52,22 @@ public class FileManager {
 		this.chordnode = chordnode;
 	}
 	
+
 	public void createReplicaFiles() {
-	 
-	//set a loop where size = numReplicas
-	for(int i = 0; i < numReplicas; i++) {
+	 	
+		// implement
+		
+		// set a loop where size = numReplicas
+		for(int i = 0; i < Util.numReplicas; i++) {
+			String ny = filename+i;
 			
-			// replicate by adding the index to filename
-			String replica = filename + i;
-			
-			// hash the replica
-			BigInteger hReplica = Hash.hashOf(replica); 
-			
-			// store the hash in the replicafiles array.
-			replicafiles[i] = hReplica;
-			
+			replicafiles[i] = Hash.hashOf(ny);
 		}
+		// replicate by adding the index to filename
+		
+		// hash the replica
+		
+		// store the hash in the replicafiles array.
 
 	}
 	
@@ -75,38 +76,41 @@ public class FileManager {
      * @param bytesOfFile
      * @throws RemoteException 
      */
-    public int distributeReplicastoPeers() throws RemoteException {
-    	int counter = 0;
-    	
-    	// Task1: Given a filename, make replicas and distribute them to all active peers such that: pred < replica <= peer
-    	
-    	// Task2: assign a replica as the primary for this file. Hint, see the slide (project 3) on Canvas
-    	
-    	// create replicas of the filename
-    	createReplicaFiles();
-    	
-		// iterate over the replicas
-    	for(BigInteger replica : replicafiles) {
-    		
-    		
-    		// for each replica, find its successor by performing findSuccessor(replica)
-    		NodeInterface succ = chordnode.findSuccessor(replica);
-    		
-    		// call the addKey on the successor and add the replica
-    		succ.addKey(replica);
-    		
-    		// call the saveFileContent() on the successor
-    		succ.saveFileContent(filename, replica, bytesOfFile, false);
-        	
-    		
-        	// increment counter
-        	counter++;
-    		
-    		
-    	}
-    		
-		return counter;
-    }
+	   public int distributeReplicastoPeers() throws RemoteException {
+	    	int counter = 0;
+	    	
+	    	// Task1: Given a filename, make replicas and distribute them to all active peers such that: pred < replica <= peer
+	    	
+	    	// Task2: assign a replica as the primary for this file. Hint, see the slide (project 3) on Canvas
+	    	Random rnd= new Random();
+	    	int index= rnd.nextInt(Util.numReplicas-1);
+	    	// create replicas of the filename
+	    	createReplicaFiles();
+			// iterate over the replicas
+	    	for(int i = 0; i < replicafiles.length; i++) {
+	    		BigInteger replica = replicafiles[i];
+	    		
+	    		NodeInterface successor = chordnode.findSuccessor(replica);
+	    		successor.addKey(replica);
+	    
+	    		if (counter == index) {
+	    			successor.saveFileContent(filename, replica, bytesOfFile, true);
+				} else {
+					successor.saveFileContent(filename, replica, bytesOfFile, false);
+				}
+	    		counter++;
+	    	}
+	    	// for each replica, find its successor by performing findSuccessor(replica)
+	    	
+	    	// call the addKey on the successor and add the replica
+	    	
+	    	// call the saveFileContent() on the successor
+	    	
+	    	// increment counter
+	    	
+	    		
+			return counter;
+	    }
 	
 	/**
 	 * 
@@ -114,112 +118,95 @@ public class FileManager {
 	 * @return list of active nodes having the replicas of this file
 	 * @throws RemoteException 
 	 */
-	public Set<Message> requestActiveNodesForFile(String filename) throws RemoteException {
-		
-		this.filename = filename;
-		Set<Message> succinfo = new HashSet<Message>();
-		
-		// Task: Given a filename, find all the peers that hold a copy of this file
-		
-		// generate the N replicas from the filename by calling createReplicaFiles()
-		createReplicaFiles();
-		Message msg = new Message();
-		
-		// it means, iterate over the replicas of the file
-		for(int i = 0; i < replicafiles.length; i++) {
+	   public Set<Message> requestActiveNodesForFile(String filename) throws RemoteException {
 			
-			BigInteger replica = replicafiles[i];
-
-			// for each replica, do findSuccessor(replica) that returns successor s.
-			NodeInterface s = chordnode.findSuccessor(replica);
-
-			// get the metadata (Message) of the replica from the successor, s (i.e. active peer) of the file
-			msg = s.getFilesMetadata(replica);
-
-			// save the metadata in the set succinfo.
-
+			this.filename = filename;
+			Set<Message> succinfo = new HashSet<Message>();
+			// Task: Given a filename, find all the peers that hold a copy of this file
+			
+			// generate the N replicas from the filename by calling createReplicaFiles()
+			createReplicaFiles();
+			// it means, iterate over the replicas of the file
+			for(int i = 0; i < replicafiles.length; i++) {
+				BigInteger replica = replicafiles[i];
+				// for each replica, do findSuccessor(replica) that returns successor s.
+	    		NodeInterface successor = chordnode.findSuccessor(replica);
+	    		// get the metadata (Message) of the replica from the successor, s (i.e. active peer) of the file
+	    		Message message = successor.getFilesMetadata(replica);
+	    		// save the metadata in the set succinfo.
+	    		succinfo.add(message);
+			}
+			
 			this.activeNodesforFile = succinfo;
-
-			succinfo.add(msg);
 			
+			return succinfo;
 		}
-		
-		return succinfo;
-	}
 	
 	/**
 	 * Find the primary server - Remote-Write Protocol
 	 * @return 
 	 */
-	public NodeInterface findPrimaryOfItem() {
-		
-		NodeInterface primary = null;
-		// Task: Given all the active peers of a file (activeNodesforFile()), find which is holding the primary copy
-		// iterate over the activeNodesforFile
-		
-		
-		try {
-				Set<Message> activeNodes = requestActiveNodesForFile(filename);
-				for(Message msg : activeNodes) {
-					if(msg.isPrimaryServer()) {
-						primary = Util.getProcessStub(msg.getNodeIP(),msg.getPort());
-						return primary;
-					}
+		public NodeInterface findPrimaryOfItem() {
+
+			// Task: Given all the active peers of a file (activeNodesforFile()), find which is holding the primary copy
+			
+			// iterate over the activeNodesforFile
+			for(Message msg : activeNodesforFile) {
+				if(msg.isPrimaryServer()) {
+					return Util.getProcessStub(msg.getNodeIP(), msg.getPort());
 				}
-		}catch(RemoteException e) {
-			e.printStackTrace();
+			}
+			// for each active peer (saved as Message)
+			
+			// use the primaryServer boolean variable contained in the Message class to check if it is the primary or not
+			
+			// return the primary
+			
+			return null; 
 		}
-		// for each active peer (saved as Message)
-		
-		// use the primaryServer boolean variable contained in the Message class to check if it is the primary or not
-		
-		// return the primary
-		
-		return primary; 
-	}
 	
     /**
      * Read the content of a file and return the bytes
      * @throws IOException 
      * @throws NoSuchAlgorithmException 
      */
-    public void readFile() throws IOException, NoSuchAlgorithmException {
-    	
-    	File f = new File(filepath);
-    	
-    	byte[] bytesOfFile = new byte[(int) f.length()];
-    	
-		FileInputStream fis = new FileInputStream(f);
-        
-        fis.read(bytesOfFile);
-		fis.close();
-		
-		//set the values
-		filename = f.getName().replace(".txt", "");		
-		hash = Hash.hashOf(filename);
-		this.bytesOfFile = bytesOfFile;
-		double size = (double) bytesOfFile.length/1000;
-		NumberFormat nf = new DecimalFormat();
-		nf.setMaximumFractionDigits(3);
-		sizeOfByte = nf.format(size);
-		
-		System.out.println("filename="+filename+" size="+sizeOfByte);
-    	
-    }
+	    public void readFile() throws IOException, NoSuchAlgorithmException {
+	    	
+	    	File f = new File(filepath);
+	    	
+	    	byte[] bytesOfFile = new byte[(int) f.length()];
+	    	
+			FileInputStream fis = new FileInputStream(f);
+	        
+	        fis.read(bytesOfFile);
+			fis.close();
+			
+			//set the values
+			filename = f.getName().replace(".txt", "");		
+			hash = Hash.hashOf(filename);
+			this.bytesOfFile = bytesOfFile;
+			double size = (double) bytesOfFile.length/1000;
+			NumberFormat nf = new DecimalFormat();
+			nf.setMaximumFractionDigits(3);
+			sizeOfByte = nf.format(size);
+			
+			System.out.println("filename="+filename+" size="+sizeOfByte);
+	    	
+	    }
     
-    public void printActivePeers() {
-    	
-    	activeNodesforFile.forEach(m -> {
-    		String peer = m.getNodeIP();
-    		String id = m.getNodeID().toString();
-    		String name = m.getNameOfFile();
-    		String hash = m.getHashOfFile().toString();
-    		int size = m.getBytesOfFile().length;
-    		
-    		System.out.println(peer+": ID = "+id+" | filename = "+name+" | HashOfFile = "+hash+" | size ="+size);
-    		
-    	});
-    }
+	    public void printActivePeers() {
+	    	
+	    	activeNodesforFile.forEach(m -> {
+	    		String peer = m.getNodeIP();
+	    		String id = m.getNodeID().toString();
+	    		String name = m.getNameOfFile();
+	    		String hash = m.getHashOfFile().toString();
+	    		int size = m.getBytesOfFile().length;
+	    		
+	    		System.out.println(peer+": ID = "+id+" | filename = "+name+" | HashOfFile = "+hash+" | size ="+size);
+	    		
+	    	});
+	    }
 
 	/**
 	 * @return the numReplicas

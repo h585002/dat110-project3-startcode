@@ -20,41 +20,38 @@ import no.hvl.dat110.util.Util;
 public class ChordLookup {
 
 	private Node node;
-	
+
 	public ChordLookup(Node node) {
 		this.node = node;
 	}
-	
-	public NodeInterface findSuccessor(BigInteger key) throws RemoteException {
-		
-		// ask this node to find the successor of key
-		NodeInterface successor = this.node;
-		
-		// get the successor of the node
-		successor.getSuccessor();
-		
-		// get the stub for this successor (Util.getProcessStub())
-		NodeInterface success = Util.getProcessStub(successor.getNodeName(), successor.getPort());
-		
-		BigInteger successID = success.getNodeID();
-		BigInteger nodeID = node.getNodeID();
-		
-		// check that key is a member of the set {nodeid+1,...,succID} i.e. (nodeid+1 <= key <= succID) using the ComputeLogic
-		if (Util.computeLogic(key, nodeID.add(new BigInteger("1")), successID)) {
-			// if logic returns true, then return the successor
-			return successor;
-		} else {
-			// if logic returns false; call findHighestPredecessor(key)
-			NodeInterface highest_pred = findHighestPredecessor(key);
 
-			// do highest_pred.findSuccessor(key) - This is a recursive call until logic
-			// returns true
-			highest_pred.findSuccessor(key);
+	public NodeInterface findSuccessor(BigInteger key) throws RemoteException {
+
+		// ask this node to find the successor of key
+
+		// get the successor of the node
+		NodeInterface successor = this.node.getSuccessor();
+		// get the stub for this successor (Util.getProcessStub())
+		NodeInterface successorStub = Util.getProcessStub(successor.getNodeName(), successor.getPort());
+		// check that key is a member of the set {nodeid+1,...,succID} i.e. (nodeid+1 <=
+		// key <= succID) using the ComputeLogic
+		Boolean condition = Util.computeLogic(key, node.getNodeID().add(new BigInteger("1")),
+				successorStub.getNodeID());
+		// if logic returns true, then return the successor
+		if (condition) {
+			return successorStub;
+		} else {
+			NodeInterface highest_pred = findHighestPredecessor(key);
+			return highest_pred.findSuccessor(key);
 		}
-				
-		return null;					
+
+		// if logic returns false; call findHighestPredecessor(key)
+
+		// do highest_pred.findSuccessor(key) - This is a recursive call until logic
+		// returns true
+
 	}
-	
+
 	/**
 	 * This method makes a remote call. Invoked from a local client
 	 * 
@@ -66,27 +63,29 @@ public class ChordLookup {
 
 		// collect the entries in the finger table for this node
 		List<NodeInterface> fingerTable = node.getFingerTable();
-
 		// starting from the last entry, iterate over the finger table
-		for (int i = fingerTable.size() - 1; i < 0; i--) {
-			NodeInterface finger = fingerTable.get(i);
 
-			// for each finger, obtain a stub from the registry
-			NodeInterface stub = Util.getProcessStub(finger.getNodeName(), finger.getPort());
+		// for each finger, obtain a stub from the registry
+		for (int i = fingerTable.size() - 1; i >= 0; i--) {
+			NodeInterface n = fingerTable.get(i);
 
-			if (Util.computeLogic(finger.getNodeID(), node.getNodeID().add(new BigInteger("1")),
-					key.subtract(new BigInteger("1")))) {
-
-				// if logic returns true, then return the finger (means finger is the closest to
-				// key)
+			NodeInterface stub = Util.getProcessStub(n.getNodeName(), n.getPort());
+			Boolean condition = Util.computeLogic(stub.getNodeID(), node.getNodeID().add(new BigInteger("1")),
+					key.subtract(new BigInteger("1")));
+			if (condition) {
 				return stub;
 			}
 		}
-		
-		return (NodeInterface) node;			
+		// check that finger is a member of the set {nodeID+1,...,ID-1} i.e. (nodeID+1
+		// <= finger <= key-1) using the ComputeLogic
+
+		// if logic returns true, then return the finger (means finger is the closest to
+		// key)
+		//
+		return (NodeInterface) node;
 	}
-	
-	public void copyKeysFromSuccessor(NodeInterface succ) {
+
+public void copyKeysFromSuccessor(NodeInterface succ) {
 		
 		Set<BigInteger> filekeys;
 		try {
@@ -125,68 +124,69 @@ public class ChordLookup {
 		}
 	}
 
-	public void notify(NodeInterface pred_new) throws RemoteException {
 		
-		NodeInterface pred_old = node.getPredecessor();
-		
-		// if the predecessor is null accept the new predecessor
-		if(pred_old == null) {
-			node.setPredecessor(pred_new);		// accept the new predecessor
-			return;
-		}
-		
-		else if(pred_new.getNodeName().equals(node.getNodeName())) {
-			node.setPredecessor(null);
-			return;
-		} else {
-			BigInteger nodeID = node.getNodeID();
-			BigInteger pred_oldID = pred_old.getNodeID();
-			
-			BigInteger pred_newID = pred_new.getNodeID();
-			
-			// check that pred_new is between pred_old and this node, accept pred_new as the new predecessor
-			// check that ftsuccID is a member of the set {nodeID+1,...,ID-1}
-			boolean cond = Util.computeLogic(pred_newID, pred_oldID.add(new BigInteger("1")), nodeID.add(new BigInteger("1")));
-			if(cond) {		
-				node.setPredecessor(pred_new);		// accept the new predecessor
-			}	
-		}		
+
+public void notify(NodeInterface pred_new) throws RemoteException {
+	
+	NodeInterface pred_old = node.getPredecessor();
+	
+	// if the predecessor is null accept the new predecessor
+	if(pred_old == null) {
+		node.setPredecessor(pred_new);		// accept the new predecessor
+		return;
 	}
 	
-	public void leaveRing() throws RemoteException {
+	else if(pred_new.getNodeName().equals(node.getNodeName())) {
+		node.setPredecessor(null);
+		return;
+	} else {
+		BigInteger nodeID = node.getNodeID();
+		BigInteger pred_oldID = pred_old.getNodeID();
 		
-		System.out.println("Attempting to update successor and predecessor before leaving the ring...");
+		BigInteger pred_newID = pred_new.getNodeID();
 		
-		try {
-		 
-			NodeInterface prednode = node.getPredecessor();														// get the predecessor			
-			NodeInterface succnode = node.getSuccessor();														// get the successor		
-			NodeInterface prednodestub = Util.getProcessStub(prednode.getNodeName(), prednode.getPort());		// get the prednode stub			
-			NodeInterface succnodestub = Util.getProcessStub(succnode.getNodeName(), succnode.getPort());		// get the succnode stub			
-			Set<BigInteger> keyids = node.getNodeKeys();									// get the keys for chordnode
-						 
-			if(succnodestub != null) {												// add chordnode's keys to its successor
-				keyids.forEach(fileID -> {
-					try {
-						System.out.println("Adding fileID = "+fileID+" to "+succnodestub.getNodeName());
-						succnodestub.addKey(fileID);
-						Message msg = node.getFilesMetadata().get(fileID);				
-						succnodestub.saveFileContent(msg.getNameOfFile(), fileID, msg.getBytesOfFile(), msg.isPrimaryServer()); 			// save the file in memory of the newly joined node
-					} catch (RemoteException e) {
-						//e.printStackTrace();
-					} 
-				});
+		// check that pred_new is between pred_old and this node, accept pred_new as the new predecessor
+		// check that ftsuccID is a member of the set {nodeID+1,...,ID-1}
+		boolean cond = Util.computeLogic(pred_newID, pred_oldID.add(new BigInteger("1")), nodeID.add(new BigInteger("1")));
+		if(cond) {		
+			node.setPredecessor(pred_new);		// accept the new predecessor
+		}	
+	}		
+}
+public void leaveRing() throws RemoteException {
+	
+	System.out.println("Attempting to update successor and predecessor before leaving the ring...");
+	
+	try {
+	 
+		NodeInterface prednode = node.getPredecessor();														// get the predecessor			
+		NodeInterface succnode = node.getSuccessor();														// get the successor		
+		NodeInterface prednodestub = Util.getProcessStub(prednode.getNodeName(), prednode.getPort());		// get the prednode stub			
+		NodeInterface succnodestub = Util.getProcessStub(succnode.getNodeName(), succnode.getPort());		// get the succnode stub			
+		Set<BigInteger> keyids = node.getNodeKeys();									// get the keys for chordnode
+					 
+		if(succnodestub != null) {												// add chordnode's keys to its successor
+			keyids.forEach(fileID -> {
+				try {
+					System.out.println("Adding fileID = "+fileID+" to "+succnodestub.getNodeName());
+					succnodestub.addKey(fileID);
+					Message msg = node.getFilesMetadata().get(fileID);				
+					succnodestub.saveFileContent(msg.getNameOfFile(), fileID, msg.getBytesOfFile(), msg.isPrimaryServer()); 			// save the file in memory of the newly joined node
+				} catch (RemoteException e) {
+					//e.printStackTrace();
+				} 
+			});
 
-				succnodestub.setPredecessor(prednodestub); 							// set prednode as the predecessor of succnode
-			}
-			if(prednodestub != null) {
-				prednodestub.setSuccessor(succnodestub);							// set succnode as the successor of prednode			
-			} 
-		}catch(Exception e) {
-			//
-			System.out.println("some errors while updating succ/pred/keys...");
+			succnodestub.setPredecessor(prednodestub); 							// set prednode as the predecessor of succnode
 		}
-		System.out.println("Update of successor and predecessor completed...bye!");
+		if(prednodestub != null) {
+			prednodestub.setSuccessor(succnodestub);							// set succnode as the successor of prednode			
+		} 
+	}catch(Exception e) {
+		//
+		System.out.println("some errors while updating succ/pred/keys...");
 	}
+	System.out.println("Update of successor and predecessor completed...bye!");
+}
 
 }
