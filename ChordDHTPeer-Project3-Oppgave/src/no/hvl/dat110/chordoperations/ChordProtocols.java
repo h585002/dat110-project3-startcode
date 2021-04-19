@@ -26,7 +26,7 @@ public class ChordProtocols {
 	 */
 	
 	private NodeInterface chordnode;
-	//private Node node;
+	//private Node node; //
 	
 	public ChordProtocols(NodeInterface chordnode) {
 		this.chordnode = chordnode;
